@@ -1,0 +1,55 @@
+server:
+  port: 8765
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        register-health-indicator: true
+        sliding-window-type: count-based
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        minimum-number-of-calls: 5
+        automatic-transition-from-open-to-half-open-enabled: true
+        wait-duration-in-open-state: 5s
+        permitted-number-of-calls-in-half-open-state: 3
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          lower-case-service-id: true
+      routes:
+        - id: currency-conversion
+          uri: lb://currency-conversion
+          predicates:
+            - Path=/convert/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: currencyConversionCircuitBreaker
+                fallbackUri: forward:/fallback/currency-conversion
+            - RewritePath=/convert/?(?<resto>.*), /currency-conversion-feign/$\{resto}
+        - id: currency-exchange
+          uri: lb://currency-exchange
+          predicates:
+            - Path=/convertionrate/**
+          filters:
+            - RewritePath=/convertionrate/?(?<resto>.*), /currency-exchange/$\{resto}
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: http://localhost:8761/eureka
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      show-details: always
+    gateway:
+      enabled: true
+    circuitbreakers:
+      enabled: true
